@@ -1,61 +1,46 @@
-name: Build EXE
+<#
+.SYNOPSIS
+    Compiles Update-GamingServices.ps1 into a standalone .exe using PS2EXE.
 
-on:
-  push:
-    tags: ['v*']
-  workflow_dispatch:
+.DESCRIPTION
+    Run this once on your Windows machine to produce Update-GamingServices.exe.
+    The CI workflow in .github/workflows/build.yml does the same automatically
+    on every tag push.
 
-permissions:
-  contents: write
+.EXAMPLE
+    .\build.ps1
+#>
 
-jobs:
-  build:
-    runs-on: windows-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+[CmdletBinding()]
+param(
+    [string]$Version = '1.0.0'
+)
 
-      - name: Install PS2EXE
-        shell: powershell
-        run: |
-          Set-PSRepository PSGallery -InstallationPolicy Trusted
-          Install-Module -Name ps2exe -Scope CurrentUser -Force
+$ErrorActionPreference = 'Stop'
 
-      - name: Determine version
-        id: ver
-        shell: powershell
-        run: |
-          $ref = "${{ github.ref }}"
-          if ($ref -like 'refs/tags/v*') {
-            $version = $ref -replace '^refs/tags/v',''
-          } else {
-            $version = '0.0.0-dev'
-          }
-          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          Write-Host "Building version $version"
+if (-not (Get-Module -ListAvailable -Name ps2exe)) {
+    Write-Host 'Installing PS2EXE module...' -ForegroundColor Cyan
+    Set-PSRepository PSGallery -InstallationPolicy Trusted
+    Install-Module -Name ps2exe -Scope CurrentUser -Force
+}
 
-      - name: Compile to EXE
-        shell: powershell
-        run: |
-          Invoke-PS2EXE `
-            -InputFile .\Update-GamingServices.ps1 `
-            -OutputFile .\Update-GamingServices.exe `
-            -Title 'Forza Horizon 6 - Gaming Services Updater' `
-            -Description 'Updates Microsoft Gaming Services for Forza Horizon 6' `
-            -Product 'Update-GamingServices' `
-            -Company 'OSS' `
-            -Version '${{ steps.ver.outputs.version }}' `
-            -RequireAdmin
+Import-Module ps2exe
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Update-GamingServices
-          path: Update-GamingServices.exe
+$here = Split-Path -Parent $MyInvocation.MyCommand.Path
+$src  = Join-Path $here 'Update-GamingServices.ps1'
+$dst  = Join-Path $here 'Update-GamingServices.exe'
 
-      - name: Attach to release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: Update-GamingServices.exe
-          generate_release_notes: true
+Write-Host "Compiling $src -> $dst" -ForegroundColor Cyan
+
+Invoke-PS2EXE `
+    -InputFile $src `
+    -OutputFile $dst `
+    -Title 'Forza Horizon 6 - Gaming Services Updater' `
+    -Description 'Updates Microsoft Gaming Services for Forza Horizon 6' `
+    -Product 'Update-GamingServices' `
+    -Company 'OSS' `
+    -Version $Version `
+    -RequireAdmin
+
+Write-Host ''
+Write-Host "Built: $dst" -ForegroundColor Green
