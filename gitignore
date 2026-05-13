@@ -1,0 +1,11 @@
+# Build output
+*.exe
+
+# OS junk
+Thumbs.db
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+*.swp
